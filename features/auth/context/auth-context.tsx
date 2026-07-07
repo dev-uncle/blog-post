@@ -1,8 +1,10 @@
 "use client"
 
 import * as React from "react"
+import { login as loginAction, signup as signupAction, logout as logoutAction, getCurrentUser } from "@/app/actions/auth"
 
 export interface User {
+  id: string
   name: string
   email: string
   avatar?: string
@@ -24,70 +26,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = React.useState(true)
 
   React.useEffect(() => {
-    // Retrieve stored user on component mount (client-side only)
-    const storedUser = localStorage.getItem("scribbles_user")
-    
-    // Schedule state updates asynchronously to avoid synchronous setState inside useEffect body
-    const timer = setTimeout(() => {
-      if (storedUser) {
-        try {
-          setUser(JSON.parse(storedUser))
-        } catch (e) {
-          console.error("Failed to parse stored user", e)
+    // Check if there is an active session on mount
+    async function checkSession() {
+      try {
+        const res = await getCurrentUser()
+        if (res.success && res.data) {
+          setUser(res.data)
+        } else {
+          setUser(null)
         }
+      } catch (error) {
+        console.error("Failed to restore session:", error)
+        setUser(null)
+      } finally {
+        setIsLoading(false)
       }
-      setIsLoading(false)
-    }, 0)
-
-    return () => clearTimeout(timer)
+    }
+    checkSession()
   }, [])
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true)
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    
-    // Simple mock auth validation (accepts any credentials for frontend demo)
-    if (email && password) {
-      // Default mock name based on email prefix if not signed up
-      const mockName = email.split("@")[0].split(".").map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(" ")
-      const loggedUser: User = {
-        name: mockName,
-        email: email,
-        avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(mockName)}`
+    try {
+      const res = await loginAction(email, password)
+      if (res.success && res.data) {
+        setUser(res.data)
+        setIsLoading(false)
+        return true
       }
-      setUser(loggedUser)
-      localStorage.setItem("scribbles_user", JSON.stringify(loggedUser))
       setIsLoading(false)
-      return true
+      return false
+    } catch (e) {
+      console.error(e)
+      setIsLoading(false)
+      return false
     }
-    setIsLoading(false)
-    return false
   }
 
   const signup = async (name: string, email: string, password: string): Promise<boolean> => {
     setIsLoading(true)
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 800))
-
-    if (name && email && password) {
-      const loggedUser: User = {
-        name: name,
-        email: email,
-        avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`
+    try {
+      const res = await signupAction(name, email, password)
+      if (res.success && res.data) {
+        setUser(res.data)
+        setIsLoading(false)
+        return true
       }
-      setUser(loggedUser)
-      localStorage.setItem("scribbles_user", JSON.stringify(loggedUser))
       setIsLoading(false)
-      return true
+      return false
+    } catch (e) {
+      console.error(e)
+      setIsLoading(false)
+      return false
     }
-    setIsLoading(false)
-    return false
   }
 
-  const logout = React.useCallback(() => {
-    setUser(null)
-    localStorage.removeItem("scribbles_user")
+  const logout = React.useCallback(async () => {
+    setIsLoading(true)
+    try {
+      await logoutAction()
+      setUser(null)
+    } catch (e) {
+      console.error("Failed to log out:", e)
+    } finally {
+      setIsLoading(false)
+    }
   }, [])
 
   const value = React.useMemo(

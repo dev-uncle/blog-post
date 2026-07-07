@@ -117,9 +117,6 @@ export function CreatePostDialog({ open, onOpenChange, postToEdit = null }: Crea
     setLoading(true)
 
     try {
-      // Mock network latency
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      
       const postData = {
         title: title.trim(),
         category,
@@ -128,19 +125,22 @@ export function CreatePostDialog({ open, onOpenChange, postToEdit = null }: Crea
         coverImage: coverImage || undefined,
       }
 
+      let success = false
       if (isEditMode && postToEdit) {
-        editPost(postToEdit.id, postData)
+        success = await editPost(postToEdit.id, postData)
       } else {
-        createPost(postData)
+        success = await createPost(postData)
       }
 
-      setShowSuccess(true)
-      
-      // Delay closing to show success notification
-      setTimeout(() => {
-        onOpenChange(false)
-      }, 1500)
-
+      if (success) {
+        setShowSuccess(true)
+        // Delay closing to show success notification
+        setTimeout(() => {
+          onOpenChange(false)
+        }, 1500)
+      } else {
+        setError(isEditMode ? "Failed to save changes. Please check your connection and login status." : "Failed to publish the post. Please check your connection and login status.")
+      }
     } catch (err) {
       console.error(err)
       setError(isEditMode ? "Failed to save changes. Please try again." : "Failed to publish the post. Please try again.")

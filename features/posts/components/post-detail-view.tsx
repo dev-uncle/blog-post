@@ -1,76 +1,38 @@
-"use client"
-
-import * as React from "react"
+import { Post } from "@/features/posts/hooks/use-posts"
 import Link from "next/link"
-import { useParams } from "next/navigation"
-import { usePosts } from "@/features/posts/hooks/use-posts"
 import { Navbar } from "@/features/landing/components/Navbar"
 import { Footer } from "@/features/landing/components/Footer"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Calendar, Clock } from "lucide-react"
 
-export function PostDetailView() {
-  const params = useParams<{ id: string }>()
-  const { posts } = usePosts()
-  const [isLoading, setIsLoading] = React.useState(true)
+interface PostDetailViewProps {
+  initialPost: Post
+}
 
-  const post = React.useMemo(() => {
-    return posts.find((p) => p.id === params.id) || null
-  }, [posts, params.id])
+const GRADIENT_PRESETS = [
+  "from-blue-500/20 to-indigo-600/20",
+  "from-purple-500/20 to-pink-600/20",
+  "from-emerald-500/20 to-teal-600/20",
+  "from-cyan-500/20 to-blue-500/20",
+  "from-orange-500/20 to-rose-600/20",
+]
 
-  React.useEffect(() => {
-    // Wait for posts to hydrate from localStorage
-    if (posts.length > 0) {
-      const timer = setTimeout(() => setIsLoading(false), 0)
-      return () => clearTimeout(timer)
-    }
-    const fallback = setTimeout(() => setIsLoading(false), 500)
-    return () => clearTimeout(fallback)
-  }, [posts])
+function getPresetGradient(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const index = Math.abs(hash) % GRADIENT_PRESETS.length
+  return GRADIENT_PRESETS[index]
+}
 
+export function PostDetailView({ initialPost: post }: PostDetailViewProps) {
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
       <main className="flex-grow">
-        {isLoading ? (
-          /* Loading skeleton */
-          <article className="py-20">
-            <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-              <div className="animate-pulse space-y-6">
-                <div className="h-4 w-24 bg-muted rounded" />
-                <div className="h-10 w-3/4 bg-muted rounded" />
-                <div className="flex gap-4">
-                  <div className="h-4 w-28 bg-muted rounded" />
-                  <div className="h-4 w-20 bg-muted rounded" />
-                </div>
-                <div className="h-64 bg-muted rounded-xl" />
-                <div className="space-y-3">
-                  <div className="h-4 bg-muted rounded w-full" />
-                  <div className="h-4 bg-muted rounded w-5/6" />
-                  <div className="h-4 bg-muted rounded w-4/6" />
-                </div>
-              </div>
-            </div>
-          </article>
-        ) : !post ? (
-          /* Not found */
-          <div className="py-32 text-center">
-            <div className="mx-auto max-w-md px-4">
-              <h1 className="text-4xl font-bold text-foreground mb-4">Post Not Found</h1>
-              <p className="text-muted-foreground mb-8">
-                The publication you are looking for does not exist or may have been deleted.
-              </p>
-              <Link href="/">
-                <Button variant="outline" className="cursor-pointer">
-                  <ArrowLeft className="size-4 mr-2" />
-                  Back to Home
-                </Button>
-              </Link>
-            </div>
-          </div>
-        ) : (
-          /* Post content */
+
           <article className="py-20">
             <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
               {/* Back link */}
@@ -114,11 +76,11 @@ export function PostDetailView() {
                     className="w-full h-auto object-cover max-h-[480px]"
                   />
                 </div>
-              ) : (post.gradientFrom || post.gradientTo) ? (
-                <div className={`mb-10 rounded-xl h-48 bg-linear-to-br ${post.gradientFrom || 'from-muted/40'} ${post.gradientTo || 'to-muted/80'} border border-border`}>
+              ) : (
+                <div className={`mb-10 rounded-xl h-48 bg-linear-to-br ${getPresetGradient(post.id)} border border-border`}>
                   <div className="w-full h-full bg-[linear-gradient(to_right,#ffffff15_1px,transparent_1px),linear-gradient(to_bottom,#ffffff15_1px,transparent_1px)] bg-[size:14px_24px] rounded-xl" />
                 </div>
-              ) : null}
+              )}
 
               {/* Excerpt */}
               <p className="text-lg text-muted-foreground leading-relaxed mb-8 italic border-l-4 border-primary/30 pl-4">
@@ -141,7 +103,6 @@ export function PostDetailView() {
               </div>
             </div>
           </article>
-        )}
       </main>
       <Footer />
     </div>

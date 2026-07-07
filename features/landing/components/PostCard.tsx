@@ -14,11 +14,27 @@ interface PostCardProps {
   date: string
   readTime: string
   category: string
-  coverImage?: string
-  gradientFrom?: string
-  gradientTo?: string
+  coverImage?: string | null
+  authorId?: string | null
   onEdit?: () => void
   onDelete?: () => void
+}
+
+const GRADIENT_PRESETS = [
+  "from-blue-500/20 to-indigo-600/20",
+  "from-purple-500/20 to-pink-600/20",
+  "from-emerald-500/20 to-teal-600/20",
+  "from-cyan-500/20 to-blue-500/20",
+  "from-orange-500/20 to-rose-600/20",
+]
+
+function getPresetGradient(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const index = Math.abs(hash) % GRADIENT_PRESETS.length
+  return GRADIENT_PRESETS[index]
 }
 
 export function PostCard({
@@ -29,18 +45,18 @@ export function PostCard({
   readTime,
   category,
   coverImage,
-  gradientFrom,
-  gradientTo,
+  authorId,
   onEdit,
   onDelete,
 }: PostCardProps) {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
+  const canEditOrDelete = isAuthenticated && (!authorId || authorId === user?.id)
 
   return (
     <Link href={`/posts/${id}`} className="block focus:outline-none">
       <Card className="flex flex-col h-full hover:shadow-md transition-all duration-300 border border-border group bg-card relative overflow-hidden">
-        {/* Overlay controls for Edit/Delete (visible when authenticated) */}
-        {isAuthenticated && (
+        {/* Overlay controls for Edit/Delete (visible when authorized) */}
+        {canEditOrDelete && (
           <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
             <Button
               variant="outline"
@@ -79,7 +95,7 @@ export function PostCard({
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
           ) : (
-            <div className={`absolute inset-0 bg-linear-to-br ${gradientFrom || 'from-muted/40'} ${gradientTo || 'to-muted/80'}`} />
+            <div className={`absolute inset-0 bg-linear-to-br ${getPresetGradient(id)}`} />
           )}
           {/* Subtle grid pattern overlay */}
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff15_1px,transparent_1px),linear-gradient(to_bottom,#ffffff15_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />

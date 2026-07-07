@@ -4,18 +4,26 @@ import { FeaturedPosts } from "@/features/landing/components/FeaturedPosts";
 import { About } from "@/features/landing/components/About";
 import { Newsletter } from "@/features/landing/components/Newsletter";
 import { Footer } from "@/features/landing/components/Footer";
+import { getPosts } from "@/app/actions/posts";
+import { PostsProvider } from "@/features/posts/context/posts-context";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const posts = await getPosts();
+
   return (
-    <div className="flex flex-col min-h-screen">
-      <Navbar />
-      <main className="flex-grow">
-        <Hero />
-        <FeaturedPosts />
-        <About />
-        <Newsletter />
-      </main>
-      <Footer />
-    </div>
+    <PostsProvider initialPosts={posts}>
+      <div className="flex flex-col min-h-screen">
+        <Navbar />
+        <main className="flex-grow">
+          <Hero />
+          <FeaturedPosts />
+          <About />
+          <Newsletter />
+        </main>
+        <Footer />
+      </div>
+    </PostsProvider>
   );
 }
