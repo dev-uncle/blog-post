@@ -3,37 +3,10 @@
 import { PostCard } from "./PostCard"
 import { Button } from "@/components/ui/button"
 import { ArrowRight } from "lucide-react"
+import { usePosts } from "@/features/posts/hooks/use-posts"
 
 export function FeaturedPosts() {
-  const posts = [
-    {
-      title: "Mastering Tailwind CSS v4: What's New & How to Upgrade",
-      excerpt: "An in-depth guide to Tailwind CSS v4's CSS-native architecture, performance enhancements, and simplified theme settings.",
-      category: "Development",
-      date: "Jul 06, 2026",
-      readTime: "5 min read",
-      gradientFrom: "from-blue-500/20",
-      gradientTo: "to-indigo-600/20",
-    },
-    {
-      title: "Architecting React 19 Apps with Next.js App Router",
-      excerpt: "Best practices for utilizing Server Components, Server Actions, Suspense patterns, and optimization strategies for React 19 projects.",
-      category: "Architecture",
-      date: "Jun 29, 2026",
-      readTime: "8 min read",
-      gradientFrom: "from-cyan-500/20",
-      gradientTo: "to-blue-500/20",
-    },
-    {
-      title: "Designing Fluid User Experiences with CSS Transitions",
-      excerpt: "How to implement motion principles, hover states, and smooth layouts that guide user attention without compromising accessibility.",
-      category: "Design",
-      date: "Jun 18, 2026",
-      readTime: "6 min read",
-      gradientFrom: "from-blue-600/20",
-      gradientTo: "to-sky-400/20",
-    },
-  ]
+  const { posts } = usePosts()
 
   return (
     <section id="posts" className="py-20 bg-background">

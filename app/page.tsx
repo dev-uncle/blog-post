@@ -1,9 +1,9 @@
-import { Navbar } from "@/components/pages/landing/Navbar";
-import { Hero } from "@/components/pages/landing/Hero";
-import { FeaturedPosts } from "@/components/pages/landing/FeaturedPosts";
-import { About } from "@/components/pages/landing/About";
-import { Newsletter } from "@/components/pages/landing/Newsletter";
-import { Footer } from "@/components/pages/landing/Footer";
+import { Navbar } from "@/features/landing/components/Navbar";
+import { Hero } from "@/features/landing/components/Hero";
+import { FeaturedPosts } from "@/features/landing/components/FeaturedPosts";
+import { About } from "@/features/landing/components/About";
+import { Newsletter } from "@/features/landing/components/Newsletter";
+import { Footer } from "@/features/landing/components/Footer";
 
 export default function Home() {
   return (

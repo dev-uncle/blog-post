@@ -16,12 +16,12 @@ export function Hero() {
           {/* Text Content */}
           <div className="lg:col-span-7 flex flex-col items-start gap-6 text-left">
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary tracking-wide">
-              <span>🚀 What's New:</span>
+              <span>🚀 What&apos;s New:</span>
               <span className="font-normal text-muted-foreground">Next.js 16 is officially here</span>
             </div>
             
             <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl lg:text-6xl leading-[1.1]">
-              A Developer's Space for{" "}
+              A Developer&apos;s Space for{" "}
               <span className="bg-linear-to-r from-primary to-blue-500 bg-clip-text text-transparent">
                 Code, Design, & Ideas
               </span>
