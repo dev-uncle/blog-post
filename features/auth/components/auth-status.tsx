@@ -10,7 +10,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu"
 import { PenSquare, LogOut, Plus } from "lucide-react"
 
@@ -101,12 +100,12 @@ export function AuthStatus({ onOpenAuthModal, onOpenCreatePostModal, mobile = fa
             }
           />
           <DropdownMenuContent align="end" className="w-56 mt-2 border border-border/80 bg-background/95 backdrop-blur-md shadow-lg p-1.5 rounded-lg">
-            <DropdownMenuLabel className="px-2.5 py-2">
+            <div className="px-2.5 py-2">
               <div className="flex flex-col gap-0.5">
                 <p className="text-sm font-semibold text-foreground truncate">{user.name}</p>
                 <p className="text-xs text-muted-foreground truncate">{user.email}</p>
               </div>
-            </DropdownMenuLabel>
+            </div>
             <DropdownMenuSeparator className="-mx-1.5 my-1.5" />
             <DropdownMenuItem
               onClick={onOpenCreatePostModal}

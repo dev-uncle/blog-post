@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { usePosts } from "../hooks/use-posts"
+import { usePosts, Post } from "../hooks/use-posts"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,52 +13,89 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select"
-import { Loader2, Sparkles, CheckCircle2 } from "lucide-react"
+import { Loader2, Sparkles, CheckCircle2, Image as ImageIcon, X } from "lucide-react"
 
 interface CreatePostDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  postToEdit?: Post | null
 }
-
-const GRADIENT_PRESETS = [
-  { id: "blue-indigo", name: "Blue Indigo", from: "from-blue-500/20", to: "to-indigo-600/20" },
-  { id: "cyan-blue", name: "Cyan Blue", from: "from-cyan-500/20", to: "to-blue-500/20" },
-  { id: "blue-sky", name: "Blue Sky", from: "from-blue-600/20", to: "to-sky-400/20" },
-  { id: "purple-pink", name: "Purple Pink", from: "from-purple-500/20", to: "to-pink-500/20" },
-  { id: "emerald-teal", name: "Emerald Teal", from: "from-emerald-500/20", to: "to-teal-500/20" },
-  { id: "amber-orange", name: "Amber Orange", from: "from-amber-500/20", to: "to-orange-500/20" },
-]
 
 const CATEGORIES = ["Development", "Architecture", "Design", "Product", "General"]
 
-export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) {
-  const { createPost } = usePosts()
+export function CreatePostDialog({ open, onOpenChange, postToEdit = null }: CreatePostDialogProps) {
+  const { createPost, editPost } = usePosts()
   
   const [title, setTitle] = React.useState("")
   const [category, setCategory] = React.useState(CATEGORIES[0])
   const [excerpt, setExcerpt] = React.useState("")
   const [content, setContent] = React.useState("")
-  const [selectedGradient, setSelectedGradient] = React.useState(GRADIENT_PRESETS[0])
+  const [coverImage, setCoverImage] = React.useState<string>("")
 
   const [loading, setLoading] = React.useState(false)
   const [showSuccess, setShowSuccess] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-  // Reset state when modal opens/closes
+  const isEditMode = !!postToEdit
+
+  // Reset or fill state when modal opens/closes or postToEdit changes
   React.useEffect(() => {
     if (open) {
       const timer = setTimeout(() => {
-        setTitle("")
-        setCategory(CATEGORIES[0])
-        setExcerpt("")
-        setContent("")
-        setSelectedGradient(GRADIENT_PRESETS[0])
+        if (postToEdit) {
+          setTitle(postToEdit.title)
+          setCategory(postToEdit.category)
+          setExcerpt(postToEdit.excerpt)
+          setContent(postToEdit.content)
+          setCoverImage(postToEdit.coverImage || "")
+        } else {
+          setTitle("")
+          setCategory(CATEGORIES[0])
+          setExcerpt("")
+          setContent("")
+          setCoverImage("")
+        }
         setError(null)
         setShowSuccess(false)
       }, 0)
       return () => clearTimeout(timer)
     }
-  }, [open])
+  }, [open, postToEdit])
+
+  // Handle Cover Image upload and convert to Base64
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      setError("Please select a valid image file")
+      return
+    }
+
+    // Validate size (limit to 2MB for localStorage capacity constraints)
+    const maxSize = 2 * 1024 * 1024
+    if (file.size > maxSize) {
+      setError("Image must be smaller than 2MB")
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setCoverImage(reader.result as string)
+      setError(null)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const removeCoverImage = () => {
+    setCoverImage("")
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -83,14 +120,19 @@ export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) 
       // Mock network latency
       await new Promise((resolve) => setTimeout(resolve, 1000))
       
-      createPost({
+      const postData = {
         title: title.trim(),
         category,
         excerpt: excerpt.trim(),
         content: content.trim(),
-        gradientFrom: selectedGradient.from,
-        gradientTo: selectedGradient.to,
-      })
+        coverImage: coverImage || undefined,
+      }
+
+      if (isEditMode && postToEdit) {
+        editPost(postToEdit.id, postData)
+      } else {
+        createPost(postData)
+      }
 
       setShowSuccess(true)
       
@@ -101,7 +143,7 @@ export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) 
 
     } catch (err) {
       console.error(err)
-      setError("Failed to publish the post. Please try again.")
+      setError(isEditMode ? "Failed to save changes. Please try again." : "Failed to publish the post. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -115,9 +157,13 @@ export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) 
             <div className="flex items-center justify-center size-16 rounded-full bg-emerald-500/10 text-emerald-500 mb-4">
               <CheckCircle2 className="size-10 animate-bounce" />
             </div>
-            <h3 className="text-2xl font-bold text-foreground">Post Published!</h3>
+            <h3 className="text-2xl font-bold text-foreground">
+              {isEditMode ? "Changes Saved!" : "Post Published!"}
+            </h3>
             <p className="text-sm text-muted-foreground mt-2 max-w-sm">
-              Your article has been added successfully and is now live on the landing page.
+              {isEditMode 
+                ? "Your article modifications have been stored successfully."
+                : "Your article has been added successfully and is now live on the landing page."}
             </p>
           </div>
         ) : (
@@ -125,10 +171,12 @@ export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) 
             <DialogHeader className="gap-1 pb-4">
               <DialogTitle className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
                 <Sparkles className="size-5 text-primary" />
-                Write a New Post
+                {isEditMode ? "Edit Publication" : "Write a New Post"}
               </DialogTitle>
               <DialogDescription className="text-sm text-muted-foreground">
-                Share your insights, tutorials, or updates with the developer community.
+                {isEditMode 
+                  ? "Update your draft contents, categories, or cover photo."
+                  : "Share your insights, tutorials, or updates with the developer community."}
               </DialogDescription>
             </DialogHeader>
 
@@ -161,7 +209,7 @@ export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) 
                   <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Category
                   </label>
-                  <Select value={category} onValueChange={setCategory}>
+                  <Select value={category} onValueChange={(val) => setCategory(val || CATEGORIES[0])}>
                     <SelectTrigger className="w-full h-9 cursor-pointer">
                       <SelectValue placeholder="Select Category" />
                     </SelectTrigger>
@@ -191,37 +239,51 @@ export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) 
                 </div>
               </div>
 
-              {/* Cover Gradient Presets */}
+              {/* Cover Image Upload (Replaces gradients) */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Cover Card Theme
+                  Cover Image
                 </label>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                  {GRADIENT_PRESETS.map((preset) => {
-                    const isSelected = selectedGradient.id === preset.id
-                    return (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => setSelectedGradient(preset)}
-                        className={`group relative h-12 rounded-lg border-2 overflow-hidden cursor-pointer transition-all duration-200 ${
-                          isSelected ? "border-primary scale-95 shadow-xs" : "border-border hover:border-foreground/30"
-                        }`}
-                        title={preset.name}
-                      >
-                        <div className={`absolute inset-0 bg-linear-to-br ${preset.from} ${preset.to}`} />
-                        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff10_1px,transparent_1px),linear-gradient(to_bottom,#ffffff10_1px,transparent_1px)] bg-[size:6px_10px]" />
-                        {isSelected && (
-                          <div className="absolute inset-0 bg-black/10 flex items-center justify-center text-primary">
-                            <span className="bg-background size-5 rounded-full flex items-center justify-center shadow-xs border border-primary/20">
-                              <span className="size-2 rounded-full bg-primary" />
-                            </span>
-                          </div>
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
+                
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleImageUpload}
+                  accept="image/*"
+                  className="hidden"
+                  disabled={loading}
+                />
+
+                {coverImage ? (
+                  <div className="relative h-40 w-full rounded-lg border border-border overflow-hidden group">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img 
+                      src={coverImage} 
+                      alt="Cover Preview" 
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeCoverImage}
+                      className="absolute top-2 right-2 p-1.5 bg-black/70 hover:bg-black text-white hover:text-destructive transition-colors rounded-full cursor-pointer"
+                      title="Remove Image"
+                      disabled={loading}
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex flex-col items-center justify-center h-28 w-full rounded-lg border-2 border-dashed border-border hover:border-foreground/30 hover:bg-muted/10 transition-all duration-200 cursor-pointer"
+                    disabled={loading}
+                  >
+                    <ImageIcon className="size-6 text-muted-foreground mb-1.5" />
+                    <span className="text-xs font-medium text-foreground">Upload cover photo</span>
+                    <span className="text-[10px] text-muted-foreground mt-0.5">PNG, JPG up to 2MB</span>
+                  </button>
+                )}
               </div>
 
               {/* Content Body */}
@@ -254,10 +316,10 @@ export function CreatePostDialog({ open, onOpenChange }: CreatePostDialogProps) 
                   {loading ? (
                     <>
                       <Loader2 className="size-4 mr-2 animate-spin" />
-                      Publishing...
+                      Saving...
                     </>
                   ) : (
-                    "Publish Post"
+                    isEditMode ? "Save Changes" : "Publish Post"
                   )}
                 </Button>
               </div>
