@@ -1,5 +1,6 @@
-import { getPostById } from "@/app/actions/posts"
+import { getPostById, getPosts } from "@/features/posts/actions/posts"
 import { PostDetailView } from "@/features/posts/components/post-detail-view"
+import { PostsProvider } from "@/features/posts/context/posts-context"
 import { notFound } from "next/navigation"
 
 export const dynamic = "force-dynamic";
@@ -7,10 +8,17 @@ export const dynamic = "force-dynamic";
 export default async function PostPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const post = await getPostById(id)
+  const allPosts = await getPosts()
 
   if (!post) {
     notFound()
   }
 
-  return <PostDetailView initialPost={post} />
+  const relatedPosts = allPosts.filter((p) => p.id !== post.id).slice(0, 3)
+
+  return (
+    <PostsProvider initialPosts={allPosts}>
+      <PostDetailView initialPost={post} relatedPosts={relatedPosts} />
+    </PostsProvider>
+  )
 }

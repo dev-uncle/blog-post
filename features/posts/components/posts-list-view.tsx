@@ -12,13 +12,14 @@ import { Button } from "@/components/ui/button"
 import { ArrowLeft, ArrowUpDown, Calendar as CalendarIcon } from "lucide-react"
 
 type DateSort = "newest" | "oldest"
-type DateRange = "all" | "week" | "month" | "3months"
+type DateRange = "all" | "week" | "month" | "3months" | "day" | "range"
 
 const DATE_RANGES: { label: string; value: DateRange }[] = [
   { label: "All Time", value: "all" },
   { label: "This Week", value: "week" },
   { label: "This Month", value: "month" },
-  { label: "Last 3 Months", value: "3months" },
+  { label: "Specific Day", value: "day" },
+  { label: "Custom Range", value: "range" },
 ]
 
 function parsePostDate(dateStr: string): number {
@@ -27,11 +28,51 @@ function parsePostDate(dateStr: string): number {
 }
 
 function getDateRangeCutoff(range: DateRange): number {
-  if (range === "all") return 0
+  if (range === "all" || range === "day" || range === "range") return 0
   const now = new Date()
   if (range === "week") return now.getTime() - 7 * 24 * 60 * 60 * 1000
   if (range === "month") return new Date(now.getFullYear(), now.getMonth(), 1).getTime()
   return new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()).getTime()
+}
+
+function isPostInDay(postDateStr: string, selectedDayStr: string): boolean {
+  if (!selectedDayStr) return true
+  const postTime = parsePostDate(postDateStr)
+  if (postTime === 0) return false
+
+  const postDate = new Date(postTime)
+  const [year, month, day] = selectedDayStr.split("-").map(Number)
+  
+  return (
+    postDate.getFullYear() === year &&
+    postDate.getMonth() === month - 1 &&
+    postDate.getDate() === day
+  );
+}
+
+function isPostInRange(postDateStr: string, startStr: string, endStr: string): boolean {
+  const postTime = parsePostDate(postDateStr)
+  if (postTime === 0) return false
+
+  const postDate = new Date(postTime)
+  postDate.setHours(0, 0, 0, 0)
+  const postMidnight = postDate.getTime()
+
+  if (startStr) {
+    const [sYear, sMonth, sDay] = startStr.split("-").map(Number)
+    const startDateObj = new Date(sYear, sMonth - 1, sDay)
+    startDateObj.setHours(0, 0, 0, 0)
+    if (postMidnight < startDateObj.getTime()) return false
+  }
+
+  if (endStr) {
+    const [eYear, eMonth, eDay] = endStr.split("-").map(Number)
+    const endDateObj = new Date(eYear, eMonth - 1, eDay)
+    endDateObj.setHours(0, 0, 0, 0)
+    if (postMidnight > endDateObj.getTime()) return false
+  }
+
+  return true
 }
 
 export function PostsListView() {
@@ -41,6 +82,11 @@ export function PostsListView() {
   const [activeFilter, setActiveFilter] = React.useState("All")
   const [dateSort, setDateSort] = React.useState<DateSort>("newest")
   const [dateRange, setDateRange] = React.useState<DateRange>("all")
+
+  // Custom date picker states
+  const [selectedDay, setSelectedDay] = React.useState("")
+  const [startDate, setStartDate] = React.useState("")
+  const [endDate, setEndDate] = React.useState("")
 
   const categories = React.useMemo(() => {
     const unique = Array.from(new Set(posts.map((p) => p.category)))
@@ -52,9 +98,19 @@ export function PostsListView() {
       ? [...posts]
       : posts.filter((post) => post.category === activeFilter)
 
-    const cutoff = getDateRangeCutoff(dateRange)
-    if (cutoff > 0) {
-      filtered = filtered.filter((post) => parsePostDate(post.date) >= cutoff)
+    if (dateRange === "day") {
+      if (selectedDay) {
+        filtered = filtered.filter((post) => isPostInDay(post.date, selectedDay))
+      }
+    } else if (dateRange === "range") {
+      if (startDate || endDate) {
+        filtered = filtered.filter((post) => isPostInRange(post.date, startDate, endDate))
+      }
+    } else {
+      const cutoff = getDateRangeCutoff(dateRange)
+      if (cutoff > 0) {
+        filtered = filtered.filter((post) => parsePostDate(post.date) >= cutoff)
+      }
     }
 
     filtered.sort((a, b) => {
@@ -64,7 +120,7 @@ export function PostsListView() {
     })
 
     return filtered
-  }, [posts, activeFilter, dateSort, dateRange])
+  }, [posts, activeFilter, dateSort, dateRange, selectedDay, startDate, endDate])
 
   const handleDeleteConfirm = () => {
     if (deletingPostId) {
@@ -150,6 +206,64 @@ export function PostsListView() {
                 </button>
               </div>
             </div>
+
+            {/* Conditional Date Pickers */}
+            {dateRange === "day" && (
+              <div className="flex items-center gap-3 mt-3.5 animate-in fade-in slide-in-from-top-1 duration-200 border-t border-border/40 pt-3.5">
+                <label className="text-xs font-semibold text-muted-foreground mr-1" htmlFor="specific-day">Select Day:</label>
+                <input
+                  id="specific-day"
+                  type="date"
+                  value={selectedDay}
+                  onChange={(e) => setSelectedDay(e.target.value)}
+                  className="bg-card/40 hover:bg-card/60 backdrop-blur-xs text-xs font-medium border border-border/80 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all rounded-lg px-3 py-1.5 outline-none text-foreground cursor-pointer"
+                />
+                {selectedDay && (
+                  <button
+                    onClick={() => setSelectedDay("")}
+                    className="text-[10px] font-bold text-destructive hover:underline cursor-pointer select-none uppercase tracking-wider pl-1"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
+
+            {dateRange === "range" && (
+              <div className="flex flex-wrap items-center gap-3 mt-3.5 animate-in fade-in slide-in-from-top-1 duration-200 border-t border-border/40 pt-3.5">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold text-muted-foreground" htmlFor="start-date">From:</label>
+                  <input
+                    id="start-date"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="bg-card/40 hover:bg-card/60 backdrop-blur-xs text-xs font-medium border border-border/80 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all rounded-lg px-3 py-1.5 outline-none text-foreground cursor-pointer"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold text-muted-foreground" htmlFor="end-date">To:</label>
+                  <input
+                    id="end-date"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="bg-card/40 hover:bg-card/60 backdrop-blur-xs text-xs font-medium border border-border/80 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all rounded-lg px-3 py-1.5 outline-none text-foreground cursor-pointer"
+                  />
+                </div>
+                {(startDate || endDate) && (
+                  <button
+                    onClick={() => {
+                      setStartDate("")
+                      setEndDate("")
+                    }}
+                    className="text-[10px] font-bold text-destructive hover:underline cursor-pointer select-none uppercase tracking-wider pl-1"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Post Grid */}

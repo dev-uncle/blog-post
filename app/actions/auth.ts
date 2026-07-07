@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { encrypt, getSessionUser } from "@/lib/auth";
+import { seedDemoData } from "@/lib/db/seed";
 
 async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 1000): Promise<T> {
   try {
@@ -18,13 +19,20 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 1000): Pr
   }
 }
 
-export interface ActionResponse<T = any> {
+export interface ActionResponse<T = unknown> {
   success: boolean;
   error?: string;
   data?: T;
 }
 
-export async function getCurrentUser(): Promise<ActionResponse> {
+export interface UserResponse {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string | null;
+}
+
+export async function getCurrentUser(): Promise<ActionResponse<UserResponse | null>> {
   try {
     const session = await getSessionUser();
     if (!session) {
@@ -45,10 +53,14 @@ export async function getCurrentUser(): Promise<ActionResponse> {
   }
 }
 
-export async function login(email: string, password: string): Promise<ActionResponse> {
+export async function login(email: string, password: string): Promise<ActionResponse<UserResponse>> {
   try {
     if (!email || !password) {
       return { success: false, error: "Email and password are required" };
+    }
+
+    if (email.toLowerCase().trim() === "demo@devscribbles.com") {
+      await seedDemoData();
     }
 
     // Find user in database
@@ -97,13 +109,14 @@ export async function login(email: string, password: string): Promise<ActionResp
         avatar: user.avatar,
       },
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Login action error details:", error);
-    return { success: false, error: error?.message || "An unexpected error occurred during login." };
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred during login.";
+    return { success: false, error: errorMessage };
   }
 }
 
-export async function signup(name: string, email: string, password: string): Promise<ActionResponse> {
+export async function signup(name: string, email: string, password: string): Promise<ActionResponse<UserResponse>> {
   try {
     if (!name || !email || !password) {
       return { success: false, error: "All fields are required" };
@@ -134,15 +147,17 @@ export async function signup(name: string, email: string, password: string): Pro
     const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`;
 
     // Create user in DB
-    const [newUser] = await db
-      .insert(users)
-      .values({
-        name,
-        email: cleanEmail,
-        passwordHash,
-        avatar,
-      })
-      .returning();
+    const [newUser] = await withRetry(() =>
+      db
+        .insert(users)
+        .values({
+          name,
+          email: cleanEmail,
+          passwordHash,
+          avatar,
+        })
+        .returning()
+    );
 
     // Generate JWT token
     const token = await encrypt({
@@ -171,9 +186,10 @@ export async function signup(name: string, email: string, password: string): Pro
         avatar: newUser.avatar,
       },
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Signup action error details:", error);
-    return { success: false, error: error?.message || "An unexpected error occurred during signup." };
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred during signup.";
+    return { success: false, error: errorMessage };
   }
 }
 

@@ -5,7 +5,6 @@ import { useAuth } from "../hooks/use-auth"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
 import { BookOpen, Loader2, Mail, Lock, User, Eye, EyeOff, AlertCircle } from "lucide-react"
 
 interface AuthModalProps {
@@ -75,6 +74,26 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login" }: AuthModa
         setLoginPassword("")
       } else {
         setError("Invalid email or password")
+      }
+    } catch (err) {
+      console.error(err)
+      setError("An unexpected error occurred. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDemoLogin = async () => {
+    setError(null)
+    setLoading(true)
+    try {
+      const success = await login("demo@devscribbles.com", "password123")
+      if (success) {
+        onOpenChange(false)
+        setLoginEmail("")
+        setLoginPassword("")
+      } else {
+        setError("Could not login with demo account. Please try again.")
       }
     } catch (err) {
       console.error(err)
@@ -213,6 +232,32 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login" }: AuthModa
                 </>
               ) : (
                 "Sign In"
+              )}
+            </Button>
+
+            <div className="relative flex py-1.5 items-center">
+              <div className="flex-grow border-t border-border/50"></div>
+              <span className="flex-shrink mx-3 text-[10px] text-muted-foreground/60 uppercase tracking-wider font-bold">Or</span>
+              <div className="flex-grow border-t border-border/50"></div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleDemoLogin}
+              className="w-full cursor-pointer font-semibold border-primary/25 hover:border-primary/45 hover:bg-primary/5 transition-all duration-200 h-9.5 rounded-lg text-sm text-primary flex items-center justify-center gap-1.5"
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="size-4 mr-2 animate-spin" />
+                  Logging in...
+                </>
+              ) : (
+                <>
+                  <User className="size-4" />
+                  Sign In as Demo User
+                </>
               )}
             </Button>
           </form>

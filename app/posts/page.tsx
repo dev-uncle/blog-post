@@ -1,4 +1,4 @@
-import { getPosts } from "@/app/actions/posts"
+import { getPosts } from "@/features/posts/actions/posts"
 import { PostsListView } from "@/features/posts/components/posts-list-view"
 import { PostsProvider } from "@/features/posts/context/posts-context"
 

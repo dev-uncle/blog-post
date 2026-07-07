@@ -5,8 +5,9 @@ import { posts, users } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { seedDemoData } from "@/lib/db/seed";
 
-export interface ActionResponse<T = any> {
+export interface ActionResponse<T = unknown> {
   success: boolean;
   error?: string;
   data?: T;
@@ -24,30 +25,6 @@ export interface PostResponse {
   authorId?: string | null;
   authorName?: string | null;
 }
-
-const DEFAULT_POSTS = [
-  {
-    title: "Mastering Tailwind CSS v4: What's New & How to Upgrade",
-    excerpt: "An in-depth guide to Tailwind CSS v4's CSS-native architecture, performance enhancements, and simplified theme settings.",
-    content: "Tailwind CSS v4 is a major rewrite that leverages a CSS-native compilation process. It compiles up to 10x faster, reduces config boilerplate, and supports direct imports in your stylesheet. In this guide, we dive deep into how the new engine operates, including `@theme` directives, performance benchmarks, and a step-by-step walkthrough of upgrading your existing project from v3 to v4. We cover key breaking changes, manual migration tips, and setting up customized colors and fonts using purely CSS variables.",
-    category: "Development",
-    readTime: "5 min read",
-  },
-  {
-    title: "Architecting React 19 Apps with Next.js App Router",
-    excerpt: "Best practices for utilizing Server Components, Server Actions, Suspense patterns, and optimization strategies for React 19 projects.",
-    content: "React 19 brings exciting features like Action hooks (`useActionState`, `useFormStatus`), native document metadata support, asset loading, and server action refinements. Building with Next.js App Router allows developers to take full advantage of these updates. This article explores modular file routing, designing optimized Suspense boundaries, streaming content gracefully, and securing server-side action endpoints. We also look at common pitfalls to avoid when mixing client-side interactive elements and server components.",
-    category: "Architecture",
-    readTime: "8 min read",
-  },
-  {
-    title: "Designing Fluid User Experiences with CSS Transitions",
-    excerpt: "How to implement motion principles, hover states, and smooth layouts that guide user attention without compromising accessibility.",
-    content: "Motion design isn't just about looks—it is a critical part of user interaction. When done right, transitions feel subtle, natural, and reduce cognitive load. This publication breaks down the core principles of easing curves (ease-in-out, cubic-bezier), hardware acceleration for translations, and the visual impact of hover behaviors. We demonstrate how to build custom menu toggles, modal animations, and card reveals that feel extremely premium while ensuring they remain screen-reader friendly and respect user motion preferences.",
-    category: "Design",
-    readTime: "6 min read",
-  },
-];
 
 function calculateReadTime(text: string): string {
   const wordsPerMinute = 200;
@@ -75,30 +52,9 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 1000): Pr
   }
 }
 
-// Seed the DB if it is empty
-async function seedDefaultPostsIfEmpty() {
-  try {
-    const existingPosts = await withRetry(() => db.select().from(posts).limit(1));
-    if (existingPosts.length === 0) {
-      console.log("Seeding default posts into Neon DB...");
-      await db.insert(posts).values(
-        DEFAULT_POSTS.map((p) => ({
-          title: p.title,
-          excerpt: p.excerpt,
-          content: p.content,
-          category: p.category,
-          readTime: p.readTime,
-        }))
-      );
-    }
-  } catch (error) {
-    console.error("Failed to seed default posts:", error);
-  }
-}
-
 export async function getPosts(): Promise<PostResponse[]> {
   try {
-    await seedDefaultPostsIfEmpty();
+    await seedDemoData();
 
     const results = await withRetry(() =>
       db
@@ -194,18 +150,20 @@ export async function createPostAction(postData: {
 
     const readTime = calculateReadTime(postData.content);
 
-    const [newPost] = await db
-      .insert(posts)
-      .values({
-        title: postData.title,
-        excerpt: postData.excerpt,
-        content: postData.content,
-        category: postData.category,
-        coverImage: postData.coverImage || null,
-        authorId: session.userId,
-        readTime,
-      })
-      .returning();
+    const [newPost] = await withRetry(() =>
+      db
+        .insert(posts)
+        .values({
+          title: postData.title,
+          excerpt: postData.excerpt,
+          content: postData.content,
+          category: postData.category,
+          coverImage: postData.coverImage || null,
+          authorId: session.userId,
+          readTime,
+        })
+        .returning()
+    );
 
     revalidatePath("/");
     revalidatePath("/posts");
@@ -248,11 +206,13 @@ export async function editPostAction(
     }
 
     // Verify post exists and user is owner
-    const [existingPost] = await db
-      .select()
-      .from(posts)
-      .where(eq(posts.id, id))
-      .limit(1);
+    const [existingPost] = await withRetry(() =>
+      db
+        .select()
+        .from(posts)
+        .where(eq(posts.id, id))
+        .limit(1)
+    );
 
     if (!existingPost) {
       return { success: false, error: "Publication not found." };
@@ -265,20 +225,22 @@ export async function editPostAction(
 
     const readTime = calculateReadTime(postData.content);
 
-    const [updatedPost] = await db
-      .update(posts)
-      .set({
-        title: postData.title,
-        excerpt: postData.excerpt,
-        content: postData.content,
-        category: postData.category,
-        coverImage: postData.coverImage || null,
-        readTime,
-        // If editing a default post, assign it to the user who edited it
-        authorId: existingPost.authorId || session.userId,
-      })
-      .where(eq(posts.id, id))
-      .returning();
+    const [updatedPost] = await withRetry(() =>
+      db
+        .update(posts)
+        .set({
+          title: postData.title,
+          excerpt: postData.excerpt,
+          content: postData.content,
+          category: postData.category,
+          coverImage: postData.coverImage || null,
+          readTime,
+          // If editing a default post, assign it to the user who edited it
+          authorId: existingPost.authorId || session.userId,
+        })
+        .where(eq(posts.id, id))
+        .returning()
+    );
 
     revalidatePath("/");
     revalidatePath("/posts");
@@ -313,11 +275,13 @@ export async function deletePostAction(id: string): Promise<ActionResponse> {
     }
 
     // Verify post exists and user is owner
-    const [existingPost] = await db
-      .select()
-      .from(posts)
-      .where(eq(posts.id, id))
-      .limit(1);
+    const [existingPost] = await withRetry(() =>
+      db
+        .select()
+        .from(posts)
+        .where(eq(posts.id, id))
+        .limit(1)
+    );
 
     if (!existingPost) {
       return { success: false, error: "Publication not found." };
@@ -327,7 +291,7 @@ export async function deletePostAction(id: string): Promise<ActionResponse> {
       return { success: false, error: "You are not authorized to delete this publication." };
     }
 
-    await db.delete(posts).where(eq(posts.id, id));
+    await withRetry(() => db.delete(posts).where(eq(posts.id, id)));
 
     revalidatePath("/");
     revalidatePath("/posts");

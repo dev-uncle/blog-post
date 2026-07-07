@@ -125,21 +125,21 @@ export function CreatePostDialog({ open, onOpenChange, postToEdit = null }: Crea
         coverImage: coverImage || undefined,
       }
 
-      let success = false
+      let result: { success: boolean; error?: string }
       if (isEditMode && postToEdit) {
-        success = await editPost(postToEdit.id, postData)
+        result = await editPost(postToEdit.id, postData)
       } else {
-        success = await createPost(postData)
+        result = await createPost(postData)
       }
 
-      if (success) {
+      if (result.success) {
         setShowSuccess(true)
         // Delay closing to show success notification
         setTimeout(() => {
           onOpenChange(false)
         }, 1500)
       } else {
-        setError(isEditMode ? "Failed to save changes. Please check your connection and login status." : "Failed to publish the post. Please check your connection and login status.")
+        setError(result.error || (isEditMode ? "Failed to save changes. Please check your connection and login status." : "Failed to publish the post. Please check your connection and login status."))
       }
     } catch (err) {
       console.error(err)

@@ -4,7 +4,7 @@ import { FeaturedPosts } from "@/features/landing/components/FeaturedPosts";
 import { About } from "@/features/landing/components/About";
 import { Newsletter } from "@/features/landing/components/Newsletter";
 import { Footer } from "@/features/landing/components/Footer";
-import { getPosts } from "@/app/actions/posts";
+import { getPosts } from "@/features/posts/actions/posts";
 import { PostsProvider } from "@/features/posts/context/posts-context";
 
 export const dynamic = "force-dynamic";
