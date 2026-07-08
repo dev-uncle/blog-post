@@ -10,6 +10,7 @@ import { CreatePostDialog } from "@/features/posts/components/create-post-dialog
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, ArrowUpDown, Calendar as CalendarIcon } from "lucide-react"
+import { getPaginatedPosts } from "@/features/posts/actions/posts"
 
 type DateSort = "newest" | "oldest"
 type DateRange = "all" | "week" | "month" | "3months" | "day" | "range"
@@ -22,63 +23,52 @@ const DATE_RANGES: { label: string; value: DateRange }[] = [
   { label: "Custom Range", value: "range" },
 ]
 
-function parsePostDate(dateStr: string): number {
-  const parsed = Date.parse(dateStr)
-  return isNaN(parsed) ? 0 : parsed
-}
+const CATEGORIES = ["All", "Development", "Architecture", "Design", "Product", "General"]
 
-function getDateRangeCutoff(range: DateRange): number {
-  if (range === "all" || range === "day" || range === "range") return 0
-  const now = new Date()
-  if (range === "week") return now.getTime() - 7 * 24 * 60 * 60 * 1000
-  if (range === "month") return new Date(now.getFullYear(), now.getMonth(), 1).getTime()
-  return new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()).getTime()
-}
-
-function isPostInDay(postDateStr: string, selectedDayStr: string): boolean {
-  if (!selectedDayStr) return true
-  const postTime = parsePostDate(postDateStr)
-  if (postTime === 0) return false
-
-  const postDate = new Date(postTime)
-  const [year, month, day] = selectedDayStr.split("-").map(Number)
+function getPageNumbers(currentPage: number, totalPages: number) {
+  const pages: (number | string)[] = [];
   
-  return (
-    postDate.getFullYear() === year &&
-    postDate.getMonth() === month - 1 &&
-    postDate.getDate() === day
-  );
-}
-
-function isPostInRange(postDateStr: string, startStr: string, endStr: string): boolean {
-  const postTime = parsePostDate(postDateStr)
-  if (postTime === 0) return false
-
-  const postDate = new Date(postTime)
-  postDate.setHours(0, 0, 0, 0)
-  const postMidnight = postDate.getTime()
-
-  if (startStr) {
-    const [sYear, sMonth, sDay] = startStr.split("-").map(Number)
-    const startDateObj = new Date(sYear, sMonth - 1, sDay)
-    startDateObj.setHours(0, 0, 0, 0)
-    if (postMidnight < startDateObj.getTime()) return false
+  if (totalPages <= 5) {
+    for (let i = 1; i <= totalPages; i++) {
+      pages.push(i);
+    }
+  } else {
+    pages.push(1);
+    
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+    
+    if (start > 2) {
+      pages.push("...");
+    }
+    
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    
+    if (end < totalPages - 1) {
+      pages.push("...");
+    }
+    
+    pages.push(totalPages);
   }
-
-  if (endStr) {
-    const [eYear, eMonth, eDay] = endStr.split("-").map(Number)
-    const endDateObj = new Date(eYear, eMonth - 1, eDay)
-    endDateObj.setHours(0, 0, 0, 0)
-    if (postMidnight > endDateObj.getTime()) return false
-  }
-
-  return true
+  
+  return pages;
 }
 
 export function PostsListView() {
-  const { posts, deletePost } = usePosts()
+  const { posts: contextPosts, deletePost } = usePosts()
+  
+  const [posts, setPosts] = React.useState<Post[]>([])
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const [totalPages, setTotalPages] = React.useState(1)
+  const [totalCount, setTotalCount] = React.useState(0)
+  const [isLoading, setIsLoading] = React.useState(true)
+
   const [editingPost, setEditingPost] = React.useState<Post | null>(null)
   const [deletingPostId, setDeletingPostId] = React.useState<string | null>(null)
+  
+  // Filter and sort states
   const [activeFilter, setActiveFilter] = React.useState("All")
   const [dateSort, setDateSort] = React.useState<DateSort>("newest")
   const [dateRange, setDateRange] = React.useState<DateRange>("all")
@@ -88,43 +78,47 @@ export function PostsListView() {
   const [startDate, setStartDate] = React.useState("")
   const [endDate, setEndDate] = React.useState("")
 
-  const categories = React.useMemo(() => {
-    const unique = Array.from(new Set(posts.map((p) => p.category)))
-    return ["All", ...unique]
-  }, [posts])
-
-  const filteredPosts = React.useMemo(() => {
-    let filtered = activeFilter === "All"
-      ? [...posts]
-      : posts.filter((post) => post.category === activeFilter)
-
-    if (dateRange === "day") {
-      if (selectedDay) {
-        filtered = filtered.filter((post) => isPostInDay(post.date, selectedDay))
-      }
-    } else if (dateRange === "range") {
-      if (startDate || endDate) {
-        filtered = filtered.filter((post) => isPostInRange(post.date, startDate, endDate))
-      }
-    } else {
-      const cutoff = getDateRangeCutoff(dateRange)
-      if (cutoff > 0) {
-        filtered = filtered.filter((post) => parsePostDate(post.date) >= cutoff)
-      }
+  const fetchPosts = React.useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const res = await getPaginatedPosts({
+        page: currentPage,
+        limit: 12, // 12 posts per page
+        category: activeFilter,
+        dateSort,
+        dateRange,
+        selectedDay,
+        startDate,
+        endDate,
+      })
+      
+      // Map post list from backend response format
+      setPosts(res.posts as unknown as Post[])
+      setTotalPages(res.totalPages)
+      setTotalCount(res.totalCount)
+    } catch (err) {
+      console.error("Failed to fetch paginated posts from backend:", err)
+    } finally {
+      setIsLoading(false)
     }
+  }, [currentPage, activeFilter, dateSort, dateRange, selectedDay, startDate, endDate])
 
-    filtered.sort((a, b) => {
-      const dateA = parsePostDate(a.date)
-      const dateB = parsePostDate(b.date)
-      return dateSort === "newest" ? dateB - dateA : dateA - dateB
-    })
+  // Fetch posts on filters or page change
+  React.useEffect(() => {
+    fetchPosts()
+  }, [fetchPosts, contextPosts]) // Sync with contextPosts updates (e.g. edit, create, delete)
 
-    return filtered
-  }, [posts, activeFilter, dateSort, dateRange, selectedDay, startDate, endDate])
+  // Reset page to 1 when filters change
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [activeFilter, dateSort, dateRange, selectedDay, startDate, endDate])
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (deletingPostId) {
-      deletePost(deletingPostId)
+      const result = await deletePost(deletingPostId)
+      if (result.success) {
+        fetchPosts()
+      }
       setDeletingPostId(null)
     }
   }
@@ -156,7 +150,7 @@ export function PostsListView() {
           <div className="flex flex-col gap-3 mb-10">
             {/* Category Pills */}
             <div className="flex flex-wrap items-center gap-2">
-              {categories.map((cat) => (
+              {CATEGORIES.map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setActiveFilter(cat)}
@@ -267,24 +261,104 @@ export function PostsListView() {
           </div>
 
           {/* Post Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredPosts.map((post) => (
-              <PostCard
-                key={post.id}
-                {...post}
-                onEdit={() => setEditingPost(post)}
-                onDelete={() => setDeletingPostId(post.id)}
-              />
-            ))}
-          </div>
-
-          {/* Empty State */}
-          {filteredPosts.length === 0 && (
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {Array.from({ length: 6 }).map((_, idx) => (
+                <div key={idx} className="flex flex-col h-full border border-border/60 rounded-xl overflow-hidden bg-card/50 animate-pulse">
+                  <div className="h-40 w-full bg-muted/40" />
+                  <div className="p-6 flex-grow space-y-4">
+                    <div className="h-4 w-1/3 bg-muted/40 rounded-md" />
+                    <div className="h-6 w-3/4 bg-muted/40 rounded-md" />
+                    <div className="space-y-2">
+                      <div className="h-4 w-full bg-muted/40 rounded-md" />
+                      <div className="h-4 w-5/6 bg-muted/40 rounded-md" />
+                    </div>
+                  </div>
+                  <div className="p-6 pt-4 border-t border-border/50 flex justify-between">
+                    <div className="h-4 w-1/4 bg-muted/40 rounded-md" />
+                    <div className="h-4 w-1/4 bg-muted/40 rounded-md" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : posts.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-muted-foreground text-lg">
                 No publications found matching your filters.
               </p>
             </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {posts.map((post) => (
+                  <PostCard
+                    key={post.id}
+                    {...post}
+                    onEdit={() => setEditingPost(post)}
+                    onDelete={() => setDeletingPostId(post.id)}
+                  />
+                ))}
+              </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-12 border-t border-border/50 pt-8">
+                  <p className="text-xs text-muted-foreground">
+                    Showing page <span className="font-semibold text-foreground">{currentPage}</span> of{" "}
+                    <span className="font-semibold text-foreground">{totalPages}</span> ({totalCount} publications)
+                  </p>
+                  
+                  <div className="flex flex-wrap items-center justify-center gap-1.5 w-full sm:w-auto">
+                    <Button
+                      id="btn-prev-page"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="cursor-pointer h-8 text-xs px-3"
+                    >
+                      Previous
+                    </Button>
+                    
+                    {getPageNumbers(currentPage, totalPages).map((p, idx) => {
+                      if (p === "...") {
+                        return (
+                          <span
+                            key={`ellipsis-${idx}`}
+                            className="size-8 flex items-center justify-center text-xs text-muted-foreground select-none"
+                          >
+                            ...
+                          </span>
+                        )
+                      }
+                      return (
+                        <Button
+                          key={p}
+                          id={`btn-page-${p}`}
+                          variant={currentPage === p ? "default" : "outline"}
+                          size="icon"
+                          onClick={() => setCurrentPage(Number(p))}
+                          className="size-8 cursor-pointer text-xs"
+                        >
+                          {p}
+                        </Button>
+                      )
+                    })}
+                    
+                    <Button
+                      id="btn-next-page"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="cursor-pointer h-8 text-xs px-3"
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>

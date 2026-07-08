@@ -1,8 +1,8 @@
 "use server"
 
 import { db } from "@/lib/db";
-import { posts, users } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { comments, posts, users } from "@/lib/db/schema";
+import { eq, desc, sql, and, gte, lte, asc } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { seedDemoData } from "@/lib/db/seed";
@@ -24,6 +24,7 @@ export interface PostResponse {
   coverImage?: string | null;
   authorId?: string | null;
   authorName?: string | null;
+  commentCount?: number;
 }
 
 function calculateReadTime(text: string): string {
@@ -69,9 +70,12 @@ export async function getPosts(): Promise<PostResponse[]> {
           readTime: posts.readTime,
           createdAt: posts.createdAt,
           authorName: users.name,
+          commentCount: sql<number>`count(${comments.id})::int`,
         })
         .from(posts)
         .leftJoin(users, eq(posts.authorId, users.id))
+        .leftJoin(comments, eq(posts.id, comments.postId))
+        .groupBy(posts.id, users.id)
         .orderBy(desc(posts.createdAt))
     );
 
@@ -86,10 +90,143 @@ export async function getPosts(): Promise<PostResponse[]> {
       coverImage: p.coverImage,
       authorId: p.authorId,
       authorName: p.authorName,
+      commentCount: p.commentCount || 0,
     }));
   } catch (error) {
     console.error("Error in getPosts server action:", error);
     return [];
+  }
+}
+
+export interface PaginatedPostsResponse {
+  posts: PostResponse[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+}
+
+export async function getPaginatedPosts({
+  page = 1,
+  limit = 6,
+  category = "All",
+  dateSort = "newest",
+  dateRange = "all",
+  selectedDay = "",
+  startDate = "",
+  endDate = "",
+}: {
+  page?: number;
+  limit?: number;
+  category?: string;
+  dateSort?: "newest" | "oldest";
+  dateRange?: string;
+  selectedDay?: string;
+  startDate?: string;
+  endDate?: string;
+} = {}): Promise<PaginatedPostsResponse> {
+  try {
+    await seedDemoData();
+
+    const conditions = [];
+
+    if (category && category !== "All") {
+      conditions.push(eq(posts.category, category));
+    }
+
+    if (dateRange === "week") {
+      conditions.push(gte(posts.createdAt, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)));
+    } else if (dateRange === "month") {
+      const now = new Date();
+      conditions.push(gte(posts.createdAt, new Date(now.getFullYear(), now.getMonth(), 1)));
+    } else if (dateRange === "3months") {
+      const now = new Date();
+      conditions.push(gte(posts.createdAt, new Date(now.getFullYear(), now.getMonth() - 3, now.getDate())));
+    } else if (dateRange === "day" && selectedDay) {
+      const [year, month, day] = selectedDay.split("-").map(Number);
+      const start = new Date(year, month - 1, day, 0, 0, 0, 0);
+      const end = new Date(year, month - 1, day, 23, 59, 59, 999);
+      conditions.push(gte(posts.createdAt, start));
+      conditions.push(lte(posts.createdAt, end));
+    } else if (dateRange === "range") {
+      if (startDate) {
+        const [sYear, sMonth, sDay] = startDate.split("-").map(Number);
+        const start = new Date(sYear, sMonth - 1, sDay, 0, 0, 0, 0);
+        conditions.push(gte(posts.createdAt, start));
+      }
+      if (endDate) {
+        const [eYear, eMonth, eDay] = endDate.split("-").map(Number);
+        const end = new Date(eYear, eMonth - 1, eDay, 23, 59, 59, 999);
+        conditions.push(lte(posts.createdAt, end));
+      }
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Get total count matching conditions
+    const [countResult] = await withRetry(() =>
+      db
+        .select({ count: sql<number>`count(${posts.id})::int` })
+        .from(posts)
+        .where(whereClause)
+    );
+    const totalCount = countResult?.count ?? 0;
+    const totalPages = Math.ceil(totalCount / limit);
+
+    // Fetch the subset of posts
+    const offset = (page - 1) * limit;
+    const results = await withRetry(() =>
+      db
+        .select({
+          id: posts.id,
+          title: posts.title,
+          excerpt: posts.excerpt,
+          content: posts.content,
+          category: posts.category,
+          coverImage: posts.coverImage,
+          authorId: posts.authorId,
+          readTime: posts.readTime,
+          createdAt: posts.createdAt,
+          authorName: users.name,
+          commentCount: sql<number>`count(${comments.id})::int`,
+        })
+        .from(posts)
+        .leftJoin(users, eq(posts.authorId, users.id))
+        .leftJoin(comments, eq(posts.id, comments.postId))
+        .where(whereClause)
+        .groupBy(posts.id, users.id)
+        .orderBy(dateSort === "newest" ? desc(posts.createdAt) : asc(posts.createdAt))
+        .limit(limit)
+        .offset(offset)
+    );
+
+    const formattedPosts = results.map((p) => ({
+      id: p.id,
+      title: p.title,
+      excerpt: p.excerpt,
+      content: p.content,
+      category: p.category,
+      date: formatPostDate(p.createdAt),
+      readTime: p.readTime,
+      coverImage: p.coverImage,
+      authorId: p.authorId,
+      authorName: p.authorName,
+      commentCount: p.commentCount || 0,
+    }));
+
+    return {
+      posts: formattedPosts,
+      totalCount,
+      totalPages,
+      currentPage: page,
+    };
+  } catch (error) {
+    console.error("Error in getPaginatedPosts:", error);
+    return {
+      posts: [],
+      totalCount: 0,
+      totalPages: 0,
+      currentPage: page,
+    };
   }
 }
 
@@ -108,10 +245,13 @@ export async function getPostById(id: string): Promise<PostResponse | null> {
           readTime: posts.readTime,
           createdAt: posts.createdAt,
           authorName: users.name,
+          commentCount: sql<number>`count(${comments.id})::int`,
         })
         .from(posts)
         .leftJoin(users, eq(posts.authorId, users.id))
+        .leftJoin(comments, eq(posts.id, comments.postId))
         .where(eq(posts.id, id))
+        .groupBy(posts.id, users.id)
         .limit(1)
     );
 
@@ -128,6 +268,7 @@ export async function getPostById(id: string): Promise<PostResponse | null> {
       coverImage: result.coverImage,
       authorId: result.authorId,
       authorName: result.authorName,
+      commentCount: result.commentCount || 0,
     };
   } catch (error) {
     console.error(`Error in getPostById (${id}):`, error);
@@ -146,6 +287,28 @@ export async function createPostAction(postData: {
     const session = await getSessionUser();
     if (!session) {
       return { success: false, error: "You must be logged in to create a publication." };
+    }
+
+    // Rate limit: 1 post per minute per user
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+    const [recentPost] = await withRetry(() =>
+      db
+        .select({ id: posts.id, createdAt: posts.createdAt })
+        .from(posts)
+        .where(
+          and(
+            eq(posts.authorId, session.userId),
+            gte(posts.createdAt, oneMinuteAgo)
+          )
+        )
+        .limit(1)
+    );
+
+    if (recentPost) {
+      return {
+        success: false,
+        error: "You are publishing too fast. Please wait 1 minute between posts.",
+      };
     }
 
     const readTime = calculateReadTime(postData.content);

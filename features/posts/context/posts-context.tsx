@@ -14,12 +14,13 @@ export interface Post {
   coverImage?: string | null
   authorId?: string | null
   authorName?: string | null
+  commentCount?: number
 }
 
 export interface PostsContextType {
   posts: Post[]
-  createPost: (postData: Omit<Post, "id" | "date" | "readTime">) => Promise<{ success: boolean; error?: string }>
-  editPost: (id: string, postData: Omit<Post, "id" | "date" | "readTime">) => Promise<{ success: boolean; error?: string }>
+  createPost: (postData: Omit<Post, "id" | "date" | "readTime" | "commentCount">) => Promise<{ success: boolean; error?: string }>
+  editPost: (id: string, postData: Omit<Post, "id" | "date" | "readTime" | "commentCount">) => Promise<{ success: boolean; error?: string }>
   deletePost: (id: string) => Promise<{ success: boolean; error?: string }>
 }
 
@@ -36,7 +37,7 @@ export function PostsProvider({ children, initialPosts = EMPTY_POSTS }: { childr
     setPrevInitialPosts(initialPosts)
   }
 
-  const createPost = async (postData: Omit<Post, "id" | "date" | "readTime">): Promise<{ success: boolean; error?: string }> => {
+  const createPost = async (postData: Omit<Post, "id" | "date" | "readTime" | "commentCount">): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await createPostAction({
         title: postData.title,
@@ -57,7 +58,7 @@ export function PostsProvider({ children, initialPosts = EMPTY_POSTS }: { childr
     }
   }
 
-  const editPost = async (id: string, postData: Omit<Post, "id" | "date" | "readTime">): Promise<{ success: boolean; error?: string }> => {
+  const editPost = async (id: string, postData: Omit<Post, "id" | "date" | "readTime" | "commentCount">): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await editPostAction(id, {
         title: postData.title,

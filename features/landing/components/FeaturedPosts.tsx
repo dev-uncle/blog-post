@@ -161,7 +161,7 @@ export function FeaturedPosts() {
 
         {/* Post Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredPosts.map((post) => (
+          {filteredPosts.slice(0, 9).map((post) => (
             <PostCard 
               key={post.id} 
               {...post} 

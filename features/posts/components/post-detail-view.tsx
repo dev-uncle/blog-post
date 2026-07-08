@@ -5,10 +5,15 @@ import { Footer } from "@/features/landing/components/Footer"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Calendar, Clock } from "lucide-react"
+import { CommentsSection } from "./comments-section"
+import type { CommentResponse } from "@/features/posts/actions/comments"
 
 interface PostDetailViewProps {
   initialPost: Post
   relatedPosts: Post[]
+  initialComments: CommentResponse[]
+  currentUserId?: string
+  isAuthenticated: boolean
 }
 
 const GRADIENT_PRESETS = [
@@ -28,7 +33,7 @@ function getPresetGradient(id: string): string {
   return GRADIENT_PRESETS[index]
 }
 
-export function PostDetailView({ initialPost: post, relatedPosts }: PostDetailViewProps) {
+export function PostDetailView({ initialPost: post, relatedPosts, initialComments, currentUserId, isAuthenticated }: PostDetailViewProps) {
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
@@ -94,8 +99,17 @@ export function PostDetailView({ initialPost: post, relatedPosts }: PostDetailVi
                 {post.content}
               </div>
 
+              {/* Comments */}
+              <CommentsSection
+                postId={post.id}
+                postAuthorId={post.authorId}
+                initialComments={initialComments}
+                currentUserId={currentUserId}
+                isAuthenticated={isAuthenticated}
+              />
+
               {/* Bottom nav */}
-              <div className="mt-16 pt-8 border-t border-border">
+              <div className="mt-14 pt-8 border-t border-border">
                 <Link href="/">
                   <Button variant="outline" className="cursor-pointer group">
                     <ArrowLeft className="size-4 mr-2 transition-transform group-hover:-translate-x-1" />

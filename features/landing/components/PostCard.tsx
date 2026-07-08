@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Calendar, Clock, ArrowUpRight, Trash2, Edit } from "lucide-react"
+import { Calendar, Clock, ArrowUpRight, Trash2, Edit, MessageSquare } from "lucide-react"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 
 interface PostCardProps {
@@ -16,6 +16,7 @@ interface PostCardProps {
   category: string
   coverImage?: string | null
   authorId?: string | null
+  commentCount?: number
   onEdit?: () => void
   onDelete?: () => void
 }
@@ -46,6 +47,7 @@ export function PostCard({
   category,
   coverImage,
   authorId,
+  commentCount,
   onEdit,
   onDelete,
 }: PostCardProps) {
@@ -120,13 +122,19 @@ export function PostCard({
         </CardContent>
 
         <CardFooter className="p-6 pt-4 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <Calendar className="size-3.5" />
-            <span>{date}</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <Calendar className="size-3.5" />
+              <span>{date}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Clock className="size-3.5" />
+              <span>{readTime}</span>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Clock className="size-3.5" />
-            <span>{readTime}</span>
+          <div className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-muted/50 transition-colors">
+            <MessageSquare className="size-3.5" />
+            <span className="font-medium text-foreground">{commentCount ?? 0}</span>
           </div>
         </CardFooter>
       </Card>
